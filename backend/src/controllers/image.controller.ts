@@ -2,8 +2,10 @@ import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import {
+  deleteImageByNameService,
   deleteImageService,
   getImagesByFolderService,
+  resolveImageByNameService,
   uploadImageService,
 } from "../services/image.service.js";
 
@@ -77,4 +79,62 @@ const deleteImage = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, result, "Image deleted successfully"));
 });
 
-export { deleteImage, getImagesByFolder, uploadImage };
+const resolveImageByName = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+  if (!userId) {
+    throw new ApiError(401, "Unauthorized Request");
+  }
+
+  const { name, folderId } = req.query as {
+    name?: string;
+    folderId?: string;
+  };
+
+  if (!name?.trim()) {
+    throw new ApiError(400, "Image name is required");
+  }
+
+  const image = await resolveImageByNameService({
+    userId: String(userId),
+    imageName: name,
+    folderId,
+  });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, image, "Image resolved successfully"));
+});
+
+const deleteImageByName = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+  if (!userId) {
+    throw new ApiError(401, "Unauthorized Request");
+  }
+
+  const { name, folderId } = req.body as {
+    name?: string;
+    folderId?: string;
+  };
+
+  if (!name?.trim()) {
+    throw new ApiError(400, "Image name is required");
+  }
+
+  const result = await deleteImageByNameService({
+    userId: String(userId),
+    imageName: name,
+    folderId,
+  });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, result, "Image deleted successfully"));
+});
+
+export {
+  deleteImage,
+  deleteImageByName,
+  getImagesByFolder,
+  resolveImageByName,
+  uploadImage,
+};

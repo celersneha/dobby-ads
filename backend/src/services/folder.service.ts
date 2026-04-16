@@ -216,6 +216,77 @@ const getFolderContentService = async ({
   };
 };
 
+const resolveFolderByNameService = async ({
+  userId,
+  name,
+  parentId,
+}: {
+  userId: string;
+  name: string;
+  parentId?: string | null;
+}) => {
+  const normalizedName = normalizeFolderName(name);
+  const parsedParentId = parseParentId(parentId);
+
+  const baseQuery: {
+    userId: string;
+    parentId?: Types.ObjectId | null;
+    name: { $regex: RegExp };
+  } = {
+    userId,
+    name: {
+      $regex: new RegExp(
+        `^${normalizedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i",
+      ),
+    },
+  };
+
+  if (parentId !== undefined) {
+    await ensureParentFolderOwnership(userId, parsedParentId);
+    baseQuery.parentId = parsedParentId;
+  }
+
+  const matches = await Folder.find(baseQuery)
+    .select("_id name parentId userId totalSize createdAt updatedAt")
+    .limit(2)
+    .lean();
+
+  if (matches.length === 0) {
+    throw new ApiError(404, "Folder not found by name");
+  }
+
+  if (matches.length > 1) {
+    throw new ApiError(
+      409,
+      "Multiple folders found with the same name. Provide parentId.",
+    );
+  }
+
+  return matches[0];
+};
+
+const getFolderContentByNameService = async ({
+  userId,
+  name,
+  parentId,
+}: {
+  userId: string;
+  name: string;
+  parentId?: string | null;
+}) => {
+  const folder = await resolveFolderByNameService({
+    userId,
+    name,
+    parentId,
+  });
+
+  return getFolderContentService({
+    userId,
+    folderId: String(folder?._id),
+  });
+};
+
 const deleteFolderService = async ({
   userId,
   folderId,
@@ -306,11 +377,35 @@ const deleteFolderService = async ({
   };
 };
 
+const deleteFolderByNameService = async ({
+  userId,
+  name,
+  parentId,
+}: {
+  userId: string;
+  name: string;
+  parentId?: string | null;
+}): Promise<DeleteFolderResult> => {
+  const folder = await resolveFolderByNameService({
+    userId,
+    name,
+    parentId,
+  });
+
+  return deleteFolderService({
+    userId,
+    folderId: String(folder?._id),
+  });
+};
+
 export {
   createFolderService,
+  deleteFolderByNameService,
   deleteFolderService,
+  getFolderContentByNameService,
   getFolderContentService,
   getFoldersService,
+  resolveFolderByNameService,
   traverseFolderTree,
   updateFolderSizes,
 };

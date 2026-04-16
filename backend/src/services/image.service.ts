@@ -116,4 +116,83 @@ const deleteImageService = async ({
   };
 };
 
-export { deleteImageService, getImagesByFolderService, uploadImageService };
+const resolveImageByNameService = async ({
+  userId,
+  imageName,
+  folderId,
+}: {
+  userId: string;
+  imageName: string;
+  folderId?: string;
+}) => {
+  const trimmedName = imageName?.trim();
+  if (!trimmedName) {
+    throw new ApiError(400, "Image name is required");
+  }
+
+  const query: {
+    userId: string;
+    folderId?: Types.ObjectId;
+    name: { $regex: RegExp };
+  } = {
+    userId,
+    name: {
+      $regex: new RegExp(
+        `^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i",
+      ),
+    },
+  };
+
+  if (folderId) {
+    query.folderId = await ensureFolderOwnership(userId, folderId);
+  }
+
+  const matches = await Image.find(query)
+    .select("_id name folderId")
+    .sort({ createdAt: -1 })
+    .limit(2)
+    .lean();
+
+  if (matches.length === 0) {
+    throw new ApiError(404, "Image not found by name");
+  }
+
+  if (matches.length > 1) {
+    throw new ApiError(
+      409,
+      "Multiple images found with the same name. Provide folderId.",
+    );
+  }
+
+  return matches[0];
+};
+
+const deleteImageByNameService = async ({
+  userId,
+  imageName,
+  folderId,
+}: {
+  userId: string;
+  imageName: string;
+  folderId?: string;
+}) => {
+  const image = await resolveImageByNameService({
+    userId,
+    imageName,
+    folderId,
+  });
+
+  return deleteImageService({
+    userId,
+    imageId: String(image?._id),
+  });
+};
+
+export {
+  deleteImageByNameService,
+  deleteImageService,
+  getImagesByFolderService,
+  resolveImageByNameService,
+  uploadImageService,
+};
