@@ -2,6 +2,10 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { ApiError } from "./utils/api-error.js";
+import authRoutes from "./routes/auth.route.js";
+import userRoutes from "./routes/user.route.js";
+import folderRoutes from "./routes/folder.route.js";
+import imageRoutes from "./routes/image.route.js";
 
 const app = express();
 const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:5173";
@@ -25,15 +29,11 @@ app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 
 app.use(express.static("public"));
-
-//routes import
-import authRoutes from "./routes/auth.route.js";
-import userRoutes from "./routes/user.route.js";
-import folderRoutes from "./routes/folder.route.js";
 //routes declaration
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/folder", folderRoutes);
+app.use("/api/v1/image", imageRoutes);
 
 app.use(
   (
