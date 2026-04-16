@@ -8,7 +8,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const uploadOnCloudinary = async (localFilePath) => {
+const uploadOnCloudinary = async (localFilePath: string) => {
   try {
     if (!localFilePath) return null;
     //upload file on cloudinary
@@ -21,18 +21,44 @@ const uploadOnCloudinary = async (localFilePath) => {
     return response;
   } catch (error) {
     console.log("Upload error:", error);
-    fs.unlink(localFilePath); //remove locally saved temp file as upload operation got failed
+    if (fs.existsSync(localFilePath)) {
+      fs.unlinkSync(localFilePath);
+    }
     return null;
   }
 };
 
 // Helper function to extract public_id from Cloudinary URL
-const getPublicIdFromUrl = (url) => {
+const getPublicIdFromUrl = (url: string) => {
   // Assuming URL is like: https://res.cloudinary.com/<cloud_name>/image/upload/v<version>/<public_id>.<file_extension>
   const parts = url.split("/");
   const fileName = parts[parts.length - 1]; // Get the last part, which is public_id with extension
+  if (!fileName) {
+    return null;
+  }
+
   const publicId = fileName.split(".")[0]; // Remove the extension from file name
-  return publicId;
+  return publicId || null;
+};
+
+const deleteFromCloudinary = async (publicIdOrUrl: string) => {
+  try {
+    if (!publicIdOrUrl) return null;
+    const publicId = publicIdOrUrl.includes("/")
+      ? getPublicIdFromUrl(publicIdOrUrl)
+      : publicIdOrUrl;
+
+    if (!publicId) {
+      return null;
+    }
+
+    return await cloudinary.uploader.destroy(publicId, {
+      resource_type: "image",
+    });
+  } catch (error) {
+    console.log("Delete error:", error);
+    return null;
+  }
 };
 
 export { uploadOnCloudinary, deleteFromCloudinary };

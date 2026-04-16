@@ -1,7 +1,27 @@
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-const userSchema = new Schema(
+
+export interface UserMethods {
+  isPasswordCorrect(password: string): Promise<boolean>;
+  generateAccessToken(): string;
+  generateRefreshToken(): string;
+}
+
+export interface UserDocument {
+  email: string;
+  Name: string;
+  password: string;
+  refreshToken?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const userSchema = new Schema<
+  UserDocument,
+  mongoose.Model<UserDocument, {}, UserMethods>,
+  UserMethods
+>(
   {
     email: {
       type: String,
@@ -27,39 +47,55 @@ const userSchema = new Schema(
   { timestamps: true },
 );
 
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
   this.password = await bcrypt.hash(this.password, 10);
-  next();
 });
 
-userSchema.methods.isPasswordCorrect = async function (password) {
+userSchema.methods.isPasswordCorrect = async function (password: string) {
   return await bcrypt.compare(password, this.password);
 };
 
 userSchema.methods.generateAccessToken = function () {
+  const secret = process.env.ACCESS_TOKEN_SECRET;
+  if (!secret) {
+    throw new Error("ACCESS_TOKEN_SECRET is not configured");
+  }
+
   return jwt.sign(
     {
       _id: this._id,
       email: this.email,
-      username: this.username,
-      fullName: this.fullName,
+      Name: this.Name,
     },
-    process.env.ACCESS_TOKEN_SECRET,
+    secret,
     {
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+      expiresIn: (process.env.ACCESS_TOKEN_EXPIRY ??
+        "15m") as jwt.SignOptions["expiresIn"],
     },
   );
 };
 userSchema.methods.generateRefreshToken = function () {
+  const secret = process.env.REFRESH_TOKEN_SECRET;
+  if (!secret) {
+    throw new Error("REFRESH_TOKEN_SECRET is not configured");
+  }
+
   return jwt.sign(
     {
       _id: this._id,
     },
-    process.env.REFRESH_TOKEN_SECRET,
+    secret,
     {
-      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
+      expiresIn: (process.env.REFRESH_TOKEN_EXPIRY ??
+        "7d") as jwt.SignOptions["expiresIn"],
     },
   );
 };
-export const User = mongoose.models.User || mongoose.model("User", userSchema);
+
+export const User =
+  (mongoose.models.User as mongoose.Model<UserDocument, {}, UserMethods>) ||
+  mongoose.model<UserDocument, mongoose.Model<UserDocument, {}, UserMethods>>(
+    "User",
+    userSchema,
+  );

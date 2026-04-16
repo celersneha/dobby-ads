@@ -2,12 +2,10 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
+import type { JwtPayload } from "../types/auth.types.js";
 
 export const verifyJWT = asyncHandler(async (req, res, next) => {
   try {
-    // console.log(req.headers);
-    // console.log(req.cookies);
-
     const token =
       req.cookies?.["AccessToken"] ||
       req.header("Authorization")?.replace("Bearer ", "");
@@ -15,7 +13,12 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
       throw new ApiError(401, "Unauthorized Request");
     }
 
-    const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const accessSecret = process.env.ACCESS_TOKEN_SECRET;
+    if (!accessSecret) {
+      throw new ApiError(500, "ACCESS_TOKEN_SECRET is not configured");
+    }
+
+    const decodedToken = jwt.verify(token, accessSecret) as JwtPayload;
     const user = await User.findById(decodedToken?._id).select(
       "-password -refreshToken",
     );
@@ -25,6 +28,6 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    throw new ApiError(401, error?.message || "Invalid access token");
+    throw new ApiError(401, (error as Error).message || "Invalid access token");
   }
 });
