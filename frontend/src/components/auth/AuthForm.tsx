@@ -1,11 +1,8 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useAuthForm } from "@/hooks/useAuthForm";
+import type { AuthFormValues } from "@/hooks/useAuthForm";
 
-export interface AuthFormValues {
-  Name?: string;
-  email: string;
-  password: string;
-}
+export type { AuthFormValues };
 
 interface AuthFormProps {
   mode: "login" | "register";
@@ -15,25 +12,13 @@ interface AuthFormProps {
 }
 
 export function AuthForm({ mode, loading, error, onSubmit }: AuthFormProps) {
-  const [values, setValues] = useState<AuthFormValues>({
-    Name: "",
-    email: "",
-    password: "",
+  const { isRegister, values, updateField, handleSubmit } = useAuthForm({
+    mode,
+    onSubmit,
   });
 
-  const isRegister = mode === "register";
-
-  const update = (field: keyof AuthFormValues, value: string) => {
-    setValues((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    await onSubmit(values);
-  };
-
   return (
-    <form onSubmit={submit} className="panel-surface space-y-4 p-6">
+    <form onSubmit={handleSubmit} className="panel-surface space-y-4 p-6">
       <h1 className="text-2xl font-semibold text-foreground">
         {isRegister ? "Create account" : "Welcome back"}
       </h1>
@@ -44,7 +29,7 @@ export function AuthForm({ mode, loading, error, onSubmit }: AuthFormProps) {
           <input
             required
             value={values.Name}
-            onChange={(e) => update("Name", e.target.value)}
+            onChange={(e) => updateField("Name", e.target.value)}
             className="form-field"
             placeholder="John Doe"
           />
@@ -57,7 +42,7 @@ export function AuthForm({ mode, loading, error, onSubmit }: AuthFormProps) {
           type="email"
           required
           value={values.email}
-          onChange={(e) => update("email", e.target.value)}
+          onChange={(e) => updateField("email", e.target.value)}
           className="form-field"
           placeholder="john@example.com"
         />
@@ -69,7 +54,7 @@ export function AuthForm({ mode, loading, error, onSubmit }: AuthFormProps) {
           type="password"
           required
           value={values.password}
-          onChange={(e) => update("password", e.target.value)}
+          onChange={(e) => updateField("password", e.target.value)}
           className="form-field"
           placeholder="********"
         />

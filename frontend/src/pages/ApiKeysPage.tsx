@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from "react";
 import {
   Copy,
   KeyRound,
@@ -16,111 +15,28 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { apiKeysService } from "@/services/api-keys.service";
-import type { ApiKeyRecord } from "@/types/api";
-
-const toIsoInDays = (days: number): string => {
-  const now = Date.now();
-  return new Date(now + days * 24 * 60 * 60 * 1000).toISOString();
-};
-
-const formatDate = (value: string | null): string => {
-  if (!value) {
-    return "-";
-  }
-
-  return new Date(value).toLocaleString();
-};
+import { formatApiKeyDate, useApiKeysPage } from "@/hooks/useApiKeysPage";
 
 export default function ApiKeysPage() {
-  const [keys, setKeys] = useState<ApiKeyRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [newKeyName, setNewKeyName] = useState("");
-  const [expiryDays, setExpiryDays] = useState<number>(90);
-  const [latestKey, setLatestKey] = useState<string | null>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-
-  const hasActiveKeys = useMemo(() => {
-    return keys.some((item) => !item.revokedAt);
-  }, [keys]);
-
-  const loadKeys = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiKeysService.list();
-      setKeys(response.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load API keys");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadKeys();
-  }, []);
-
-  const handleCreate = async () => {
-    if (!newKeyName.trim()) {
-      setError("API key name is required");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      const response = await apiKeysService.create({
-        name: newKeyName.trim(),
-        expiresAt: expiryDays > 0 ? toIsoInDays(expiryDays) : undefined,
-      });
-
-      setLatestKey(response.data.apiKey);
-      setCreateDialogOpen(false);
-      setNewKeyName("");
-      setExpiryDays(90);
-      await loadKeys();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create API key");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleRevoke = async (keyId: string) => {
-    const confirmed = window.confirm(
-      "Revoke this API key? Existing Claude/MCP sessions using it will stop working.",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setError(null);
-    try {
-      await apiKeysService.revoke(keyId);
-      await loadKeys();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to revoke API key");
-    }
-  };
-
-  const handleCopyLatestKey = async () => {
-    if (!latestKey) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(latestKey);
-      window.alert("API key copied to clipboard");
-    } catch {
-      window.alert("Could not copy automatically. Please copy manually.");
-    }
-  };
+  const {
+    keys,
+    isLoading,
+    isSubmitting,
+    revokingKeyId,
+    error,
+    latestKey,
+    hasActiveKeys,
+    newKeyName,
+    expiryDays,
+    createDialogOpen,
+    setNewKeyName,
+    setExpiryDays,
+    setCreateDialogOpen,
+    handleCreate,
+    handleRevoke,
+    handleCopyLatestKey,
+    hideLatestKey,
+  } = useApiKeysPage();
 
   return (
     <section className="space-y-6">
@@ -211,11 +127,7 @@ export default function ApiKeysPage() {
               <Copy className="size-4" />
               Copy key
             </Button>
-            <Button
-              onClick={() => setLatestKey(null)}
-              type="button"
-              variant="ghost"
-            >
+            <Button onClick={hideLatestKey} type="button" variant="ghost">
               Hide key
             </Button>
           </div>
@@ -253,11 +165,11 @@ export default function ApiKeysPage() {
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Prefix: {item.keyPrefix} • Created:{" "}
-                    {formatDate(item.createdAt)}
+                    {formatApiKeyDate(item.createdAt)}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Last used: {formatDate(item.lastUsedAt)} • Expires:{" "}
-                    {formatDate(item.expiresAt)}
+                    Last used: {formatApiKeyDate(item.lastUsedAt)} • Expires:{" "}
+                    {formatApiKeyDate(item.expiresAt)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {item.scopes.map((scope) => (
@@ -281,9 +193,14 @@ export default function ApiKeysPage() {
                     onClick={() => void handleRevoke(item._id)}
                     type="button"
                     variant="destructive"
+                    disabled={revokingKeyId === item._id}
                   >
-                    <Trash2 className="size-4" />
-                    Revoke
+                    {revokingKeyId === item._id ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-4" />
+                    )}
+                    {revokingKeyId === item._id ? "Revoking..." : "Revoke"}
                   </Button>
                 )}
               </div>
