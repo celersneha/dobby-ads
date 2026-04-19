@@ -1,5 +1,5 @@
 import { ChevronRight, FolderRoot, LoaderCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Link } from "react-router";
 import { CreateFolderDialog } from "@/components/dashboard/CreateFolderDialog";
 import { FolderGrid } from "@/components/dashboard/FolderGrid";
 import { ImageGrid } from "@/components/dashboard/ImageGrid";
@@ -24,9 +24,6 @@ export default function DashboardPage() {
     isLoading,
     surfaceTitle,
     helperText,
-    handleOpenFolder,
-    handleGoToRoot,
-    handleBreadcrumbClick,
     handleDeleteFolder,
     handleDeleteImage,
     handlePreviewImage,
@@ -48,24 +45,22 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <button
+              <Link
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1.5 transition-colors hover:bg-muted"
-                onClick={() => void handleGoToRoot()}
-                type="button"
+                to="/dashboard"
               >
                 <FolderRoot className="size-4" />
                 Root
-              </button>
-              {breadcrumb.map((item, index) => (
+              </Link>
+              {breadcrumb.map((item) => (
                 <div className="flex items-center gap-2" key={item._id}>
                   <ChevronRight className="size-4" />
-                  <button
+                  <Link
                     className="rounded-full px-3 py-1.5 transition-colors hover:bg-muted hover:text-foreground"
-                    onClick={() => void handleBreadcrumbClick(index)}
-                    type="button"
+                    to={`/dashboard/${item._id}`}
                   >
                     {item.name}
-                  </button>
+                  </Link>
                 </div>
               ))}
             </div>
@@ -129,21 +124,11 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Folders</h3>
-              {!currentFolder ? (
-                <Button
-                  onClick={() => void handleGoToRoot()}
-                  type="button"
-                  variant="ghost"
-                >
-                  Refresh Root
-                </Button>
-              ) : null}
             </div>
             <FolderGrid
               deletingFolderId={deletingFolderId}
               folders={folders}
               onDeleteFolder={handleDeleteFolder}
-              onOpenFolder={handleOpenFolder}
             />
           </div>
 

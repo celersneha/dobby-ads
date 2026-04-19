@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
+import { folderService } from "@/services/folder.service";
 import { selectCurrentUser } from "@/redux/selectors/authSelectors";
 import {
   selectCurrentFolder,
@@ -21,6 +23,7 @@ import {
   deleteFolder,
   fetchFolderContent,
   fetchFolders,
+  setBreadcrumb,
 } from "@/redux/slices/folderSlice";
 import { deleteImage, setSelectedImage } from "@/redux/slices/imageSlice";
 import type { BreadcrumbFolder, Folder, Image } from "@/types/api";
@@ -32,6 +35,7 @@ const makeBreadcrumbItem = (folder: Folder): BreadcrumbFolder => ({
 
 export function useDashboardPage() {
   const dispatch = useAppDispatch();
+  const { folderId } = useParams<{ folderId?: string }>();
 
   const user = useAppSelector(selectCurrentUser);
   const folders = useAppSelector(selectFolders);
@@ -50,38 +54,61 @@ export function useDashboardPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
-    void dispatch(fetchFolders());
-  }, [dispatch]);
+    let cancelled = false;
 
-  const handleOpenFolder = async (folder: Folder) => {
-    const nextBreadcrumb = [...breadcrumb, makeBreadcrumbItem(folder)];
+    const buildBreadcrumbTrail = async (
+      activeFolder: Folder,
+    ): Promise<BreadcrumbFolder[]> => {
+      const trail: BreadcrumbFolder[] = [makeBreadcrumbItem(activeFolder)];
+      let parentId = activeFolder.parentId;
 
-    await dispatch(
-      fetchFolderContent({
-        folderId: folder._id,
-        breadcrumb: nextBreadcrumb,
-      }),
-    );
-  };
+      while (parentId) {
+        const response = await folderService.getFolderContent(parentId);
+        const parentFolder = response.data.data.currentFolder;
 
-  const handleGoToRoot = async () => {
-    await dispatch(fetchFolders());
-  };
+        if (!parentFolder) {
+          break;
+        }
 
-  const handleBreadcrumbClick = async (index: number) => {
-    const targetFolder = breadcrumb[index];
+        trail.unshift(makeBreadcrumbItem(parentFolder));
+        parentId = parentFolder.parentId;
+      }
 
-    if (!targetFolder) {
-      return;
-    }
+      return trail;
+    };
 
-    await dispatch(
-      fetchFolderContent({
-        folderId: targetFolder._id,
-        breadcrumb: breadcrumb.slice(0, index + 1),
-      }),
-    );
-  };
+    const loadDashboardContent = async () => {
+      if (!folderId) {
+        await dispatch(fetchFolders());
+        return;
+      }
+
+      const result = await dispatch(fetchFolderContent({ folderId }));
+
+      if (!fetchFolderContent.fulfilled.match(result) || cancelled) {
+        return;
+      }
+
+      const activeFolder = result.payload.currentFolder;
+
+      if (!activeFolder) {
+        dispatch(setBreadcrumb([]));
+        return;
+      }
+
+      const trail = await buildBreadcrumbTrail(activeFolder);
+
+      if (!cancelled) {
+        dispatch(setBreadcrumb(trail));
+      }
+    };
+
+    void loadDashboardContent();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, folderId]);
 
   const handleDeleteFolder = async (folder: Folder) => {
     const confirmed = window.confirm(
@@ -143,9 +170,6 @@ export function useDashboardPage() {
     isLoading,
     surfaceTitle,
     helperText,
-    handleOpenFolder,
-    handleGoToRoot,
-    handleBreadcrumbClick,
     handleDeleteFolder,
     handleDeleteImage,
     handlePreviewImage,
